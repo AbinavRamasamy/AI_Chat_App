@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">AI Chat</string>
+    <string name="type_your_question_here">Type Your Question Here...</string>
+    <string name="send_message">Send Message</string>
+    <string name="powered_by_gemini">Powered by Gemini</string>
+    <string name="ai_chat">AI Chat</string>
+    <string name="send">Send</string>
+</resources>
