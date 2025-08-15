@@ -1,5 +1,6 @@
 package com.example.ai_chat_app
 
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.widget.EditText
@@ -11,25 +12,26 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
-import retrofit2.Retrofit
+import retrofit2.*
 import retrofit2.converter.gson.GsonConverterFactory
+import kotlin.collections.toMutableList
 
 class MainActivity : AppCompatActivity() {
-    private val chatMessages = mutableListOf<ChatMessage>()
     private lateinit var chatAdapter: ChatAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val prefs: SharedPreferences = getSharedPreferences("MyPrefs", MODE_PRIVATE)
+        val chatMessages = loadList(prefs, "chat").toMutableList()
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.rootLayout)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.rootLayout)) { view, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            view.setPadding(systemBars.left, systemBars.top,
+                        systemBars.right, systemBars.bottom)
             insets
         }
 
@@ -38,6 +40,9 @@ class MainActivity : AppCompatActivity() {
         chatAdapter = ChatAdapter(chatMessages)
         recyclerView.adapter = chatAdapter
         recyclerView.layoutManager = LinearLayoutManager(this)
+
+        //Start at bottom of chat at app launch
+        recyclerView.scrollToPosition(chatMessages.size - 1)
 
         // Retrofit setup
         val retrofit = Retrofit.Builder()
@@ -49,8 +54,17 @@ class MainActivity : AppCompatActivity() {
         val chatApi = retrofit.create(ChatApi::class.java)
 
         // Initialize UI components
+        val trash = findViewById<FloatingActionButton>(R.id.trashChat)
         val sendButton = findViewById<FloatingActionButton>(R.id.sendButton)
         val promptEditText = findViewById<EditText>(R.id.promptEditText)
+
+        trash.setOnClickListener {
+            chatMessages.clear()
+            saveList(prefs, "chat", chatMessages)
+            recyclerView.scrollToPosition(chatMessages.size - 1)
+            Toast.makeText(this, "Chat Cleared",
+                            Toast.LENGTH_SHORT).show()
+        }
 
         // Handle Enter key for sending messages
         sendButton.setOnClickListener {
@@ -59,12 +73,14 @@ class MainActivity : AppCompatActivity() {
 
             // Validate input
             if (promptText.isBlank()) {
-                Toast.makeText(this, "Please enter a prompt", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Please enter a prompt",
+                                Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             // Add user message to chat
             chatMessages.add(ChatMessage(promptText, isUser = true))
+
             chatAdapter.notifyItemInserted(chatMessages.size - 1)
             recyclerView.scrollToPosition(chatMessages.size - 1)
 
@@ -81,20 +97,18 @@ class MainActivity : AppCompatActivity() {
                     if (response.isSuccessful) {
                         val aiReply = response.body()?.reply ?: "No reply"
                         chatMessages.add(ChatMessage(aiReply, isUser = false))
+                        saveList(prefs, "chat", chatMessages)
                         chatAdapter.notifyItemInserted(chatMessages.size - 1)
                         recyclerView.scrollToPosition(chatMessages.size - 1)
-                    } else
+                    } else {
                         Log.e("AI_CHAT", "Gemini Error: ${response.code()}")
+                    }
                 }
 
                 override fun onFailure(call: Call<ChatResponse>, t: Throwable) {
                     Log.e("AI_CHAT", "Gemini Network Error", t)
-                    chatMessages.add(
-                        ChatMessage(
-                            "Network error: ${t.localizedMessage}",
-                            isUser = false
-                        )
-                    )
+                    chatMessages.add(ChatMessage("Network error: " +
+                                        "${t.localizedMessage}", isUser = false))
                     chatAdapter.notifyItemInserted(chatMessages.size - 1)
                     recyclerView.scrollToPosition(chatMessages.size - 1)
                 }

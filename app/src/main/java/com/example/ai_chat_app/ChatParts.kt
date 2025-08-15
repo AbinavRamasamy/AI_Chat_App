@@ -1,6 +1,9 @@
 package com.example.ai_chat_app
 
+import kotlinx.serialization.Serializable
+
 // Parts of a message
+@Serializable
 data class ChatMessage(
     val message: String,
     val isUser: Boolean
